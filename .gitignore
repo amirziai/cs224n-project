@@ -103,6 +103,9 @@ venv.bak/
 # mypy
 .mypy_cache/
 
+.idea/
+.DS_Store
+
 # big things to exclude
 state/
 lib/
