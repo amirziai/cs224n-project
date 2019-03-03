@@ -102,3 +102,10 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# big things to exclude
+state/
+lib/
+evaluator/
+params
+stats.json
