@@ -166,26 +166,39 @@ def load_dataset(filename, domain):
     return dataset
 
 
-def get_input_vocabulary(dataset):
+def _get_input_vocabulary(dataset,
+                          input_vocab_type, float32, input_embedding_dim, unk_cutoff):
     sentences = [x[0] for x in dataset]
-    constructor = VOCAB_TYPES[OPTIONS.input_vocab_type]
-    if OPTIONS.float32:
-        return constructor(sentences, OPTIONS.input_embedding_dim,
-                           unk_cutoff=OPTIONS.unk_cutoff,
+    constructor = VOCAB_TYPES[input_vocab_type]
+    if float32:
+        return constructor(sentences, input_embedding_dim,
+                           unk_cutoff=unk_cutoff,
                            float_type=numpy.float32)
     else:
-        return constructor(sentences, OPTIONS.input_embedding_dim,
-                           unk_cutoff=OPTIONS.unk_cutoff)
+        return constructor(sentences, input_embedding_dim,
+                           unk_cutoff=unk_cutoff)
+
+
+def get_input_vocabulary(dataset):
+    return _get_input_vocabulary(dataset,
+                                 OPTIONS.input_vocab_type, OPTIONS.float32,
+                                 OPTIONS.input_embedding_dim, OPTIONS.unk_cutoff)
+
+
+def _get_output_vocabulary(dataset,
+                           output_vocab_type, float32, output_embedding_dim):
+    sentences = [x[1] for x in dataset]
+    constructor = VOCAB_TYPES[output_vocab_type]
+    if float32:
+        return constructor(sentences, output_embedding_dim,
+                           float_type=numpy.float32)
+    else:
+        return constructor(sentences, output_embedding_dim)
 
 
 def get_output_vocabulary(dataset):
-    sentences = [x[1] for x in dataset]
-    constructor = VOCAB_TYPES[OPTIONS.output_vocab_type]
-    if OPTIONS.float32:
-        return constructor(sentences, OPTIONS.output_embedding_dim,
-                           float_type=numpy.float32)
-    else:
-        return constructor(sentences, OPTIONS.output_embedding_dim)
+    return _get_output_vocabulary(dataset, OPTIONS.output_vocab_type,
+                                  OPTIONS.float32, OPTIONS.output_embedding_dim)
 
 
 def update_model(model, dataset):
@@ -214,7 +227,7 @@ def update_model(model, dataset):
     return model
 
 
-def preprocess_data(model, raw):
+def _preprocess_data(model, raw, reverse_input):
     in_vocabulary = model.in_vocabulary
     out_vocabulary = model.out_vocabulary
     lexicon = model.lexicon
@@ -223,31 +236,44 @@ def preprocess_data(model, raw):
     for raw_ex in raw:
         x_str, y_str = raw_ex
         ex = Example(x_str, y_str, in_vocabulary, out_vocabulary, lexicon,
-                     reverse_input=OPTIONS.reverse_input)
+                     reverse_input=reverse_input)
         data.append(ex)
     return data
 
 
-def get_spec(in_vocabulary, out_vocabulary, lexicon):
-    kwargs = {'rnn_type': OPTIONS.rnn_type, 'step_rule': OPTIONS.step_rule}
-    if OPTIONS.copy.startswith('attention'):
-        if OPTIONS.model == 'attention':
-            kwargs['attention_copying'] = OPTIONS.copy
+def preprocess_data(model, raw):
+    return _preprocess_data(model, raw, OPTIONS.reverse_input)
+
+
+def _get_spec(in_vocabulary, out_vocabulary, lexicon, copy, rnn_type, step_rule, model, hidden_size):
+    kwargs = {'rnn_type': rnn_type, 'step_rule': step_rule}
+    if copy.startswith('attention'):
+        if model == 'attention':
+            kwargs['attention_copying'] = copy
         else:
             print >> sys.stderr, "Can't use use attention-based copying without attention model"
             sys.exit(1)
-    constructor = MODELS[OPTIONS.model].get_spec_class()
+    constructor = MODELS[model].get_spec_class()
     return constructor(in_vocabulary, out_vocabulary, lexicon,
-                       OPTIONS.hidden_size, **kwargs)
+                       hidden_size, **kwargs)
+
+
+def get_spec(in_vocabulary, out_vocabulary, lexicon):
+    return _get_spec(in_vocabulary, out_vocabulary, lexicon,
+                     OPTIONS.copy, OPTIONS.rnn_type, OPTIONS.step_rule, OPTIONS.model, OPTIONS.hidden_size)
+
+
+def _get_model(spec, model, float32, distract_num):
+    constructor = MODELS[model]
+    if float32:
+        model = constructor(spec, distract_num=distract_num, float_type=numpy.float32)
+    else:
+        model = constructor(spec, distract_num=distract_num)
+    return model
 
 
 def get_model(spec):
-    constructor = MODELS[OPTIONS.model]
-    if OPTIONS.float32:
-        model = constructor(spec, distract_num=OPTIONS.distract_num, float_type=numpy.float32)
-    else:
-        model = constructor(spec, distract_num=OPTIONS.distract_num)
-    return model
+    return _get_model(spec, OPTIONS.model, OPTIONS.float32, OPTIONS.distract_num)
 
 
 def print_accuracy_metrics(name, is_correct_list, tokens_correct_list,
@@ -430,13 +456,13 @@ def run_server(model, hostname='127.0.0.1', port=9001):
     bottle.run(app, host=hostname, port=port)
 
 
-def load_raw_all(domain=None):
+def _load_raw_all(domain, dev_seed, train_data, dev_frac, dev_data):
     # Load train, and dev too if dev-frac was provided
-    random.seed(OPTIONS.dev_seed)
-    if OPTIONS.train_data:
-        train_raw = load_dataset(OPTIONS.train_data, domain=domain)
-        if OPTIONS.dev_frac > 0.0:
-            num_dev = int(round(len(train_raw) * OPTIONS.dev_frac))
+    random.seed(dev_seed)
+    if train_data:
+        train_raw = load_dataset(train_data, domain=domain)
+        if dev_frac > 0.0:
+            num_dev = int(round(len(train_raw) * dev_frac))
             random.shuffle(train_raw)
             dev_raw = train_raw[:num_dev]
             train_raw = train_raw[num_dev:]
@@ -449,22 +475,34 @@ def load_raw_all(domain=None):
         dev_raw = None
 
     # Load dev data from separate file
-    if OPTIONS.dev_data:
+    if dev_data:
         if dev_raw:
             # Overwrite dev frac from before, if it existed
             print >> sys.stderr, 'WARNING: Replacing dev-frac dev data with dev-data'
-        dev_raw = load_dataset(OPTIONS.dev_data, domain=domain)
+        dev_raw = load_dataset(dev_data, domain=domain)
 
     return train_raw, dev_raw
 
 
-def get_augmenter(train_raw, domain):
-    if OPTIONS.augment:
-        aug_types = OPTIONS.augment.split('+')
+def load_raw_all(domain=None):
+    return _load_raw_all(domain,
+                         OPTIONS.dev_seed,
+                         OPTIONS.train_data,
+                         OPTIONS.dev_frac,
+                         OPTIONS.dev_data)
+
+
+def _get_augmenter(train_raw, domain, augment):
+    if augment:
+        aug_types = augment.split('+')
         augmenter = Augmenter(domain, train_raw, aug_types)
         return augmenter
     else:
         return None
+
+
+def get_augmenter(train_raw, domain):
+    return _get_augmenter(train_raw, domain, OPTIONS.augment)
 
 
 def get_lexicon():
@@ -504,11 +542,15 @@ def evaluate_dev(model, dev_raw, domain=None):
     evaluate('dev', dev_model, dev_data, domain=domain)
 
 
-def write_stats():
-    if OPTIONS.stats_file:
-        out = open(OPTIONS.stats_file, 'w')
+def _write_stats(stats_file):
+    if stats_file:
+        out = open(stats_file, 'w')
         print >> out, json.dumps(STATS)
         out.close()
+
+
+def write_stats():
+    _write_stats(OPTIONS.stats_file)
 
 
 def run():
@@ -521,6 +563,8 @@ def run():
     numpy.random.seed(OPTIONS.model_seed)
     spec = init_spec(train_raw)
     model = get_model(spec)
+    print('Model type', type(model))
+    print('Model', model)
 
     if train_raw:
         train_data = preprocess_data(model, train_raw)
