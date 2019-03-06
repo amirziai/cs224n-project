@@ -252,7 +252,7 @@ def get_model(spec):
 
 
 def print_accuracy_metrics(name, is_correct_list, tokens_correct_list,
-                           x_len_list, y_len_list, denotation_correct_list):
+                           x_len_list, y_len_list, denotation_correct_list, file_name):
     # Overall metrics
     num_examples = len(is_correct_list)
     num_correct = sum(is_correct_list)
@@ -289,6 +289,19 @@ def print_accuracy_metrics(name, is_correct_list, tokens_correct_list,
             'accuracy': denotation_accuracy
         }
         print 'Denotation-level accuracy: %d/%d = %g' % (denotation_correct, num_examples, denotation_accuracy)
+
+    pd.DataFrame({
+        'sentence_correct': [num_correct],
+        'sentence_total': [num_examples],
+        'sentence_accuracy': [seq_accuracy],
+        'token_correct': [num_tokens_correct],
+        'token_total': [num_tokens],
+        'token_accuracy': [token_accuracy],
+        'denotation_correct': [denotation_correct] if denotation_correct_list else [-1],
+        'denotation_total': [num_examples] if denotation_correct_list else [-1],
+        'denotation_accuracy': [denotation_accuracy] if denotation_correct_list else [-1],
+
+    }).to_csv(file_name, index=False)
 
 
 def decode(model, ex):
@@ -363,8 +376,9 @@ def evaluate(name, model, dataset, domain=None, prefix=''):
         'y_pred_str': y_pred_strs,
         'y_str': y_strs
     }).to_csv(file_name_csv, index=False)
-    # print_accuracy_metrics(name, is_correct_list, tokens_correct_list,
-    #                        x_len_list, y_len_list, denotation_correct_list)
+    file_name_accuracy = _get_file_name('accuracy_' + name, prefix, 'csv')
+    print_accuracy_metrics(name, is_correct_list, tokens_correct_list,
+                           x_len_list, y_len_list, denotation_correct_list, file_name_accuracy)
 
 
 def run_shell(model):
@@ -578,7 +592,8 @@ def run():
                     distract_prob=OPTIONS.distract_prob,
                     distract_num=OPTIONS.distract_num,
                     concat_prob=OPTIONS.concat_prob, concat_num=OPTIONS.concat_num,
-                    augmenter=augmenter, aug_frac=OPTIONS.aug_frac)
+                    augmenter=augmenter, aug_frac=OPTIONS.aug_frac,
+                    file_name=_get_file_name('progress', prefix, 'csv'))
         _save_parameters(spec, prefix=prefix)
         _eval(model, train_raw, train_data, dev_raw, domain, prefix=prefix)
 
@@ -590,7 +605,8 @@ def run():
                     distract_prob=OPTIONS.distract_prob,
                     distract_num=OPTIONS.distract_num,
                     concat_prob=OPTIONS.concat_prob, concat_num=OPTIONS.concat_num,
-                    augmenter=None, aug_frac=OPTIONS.aug_frac)
+                    augmenter=None, aug_frac=OPTIONS.aug_frac,
+                    file_name=_get_file_name('progress', prefix, 'csv'))
         _save_parameters(spec, prefix=prefix)
         _eval(model, train_raw, train_data, dev_raw, domain, prefix=prefix)
 
