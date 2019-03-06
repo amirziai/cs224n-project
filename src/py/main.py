@@ -298,6 +298,15 @@ def decode(model, ex):
         return model.decode_beam(ex, beam_size=OPTIONS.beam_size)
 
 
+def _get_file_name(name, prefix, extension):
+    aug_frac = int(OPTIONS.aug_frac * 100)
+    augment = OPTIONS.augment.replace('+', '_')
+    num_epochs = '_'.join(map(str, OPTIONS.num_epochs))
+    file_name = '{name}_{prefix}_aug_frac_{aug_frac}_agument_{augment}_num_epochs_{num_epochs}.{extension}'.format(
+        name=name, prefix=prefix, aug_frac=aug_frac, augment=augment, num_epochs=num_epochs, extension=extension)
+    return file_name
+
+
 def evaluate(name, model, dataset, domain=None, prefix=''):
     """Evaluate the model. """
     in_vocabulary = model.in_vocabulary
@@ -345,12 +354,7 @@ def evaluate(name, model, dataset, domain=None, prefix=''):
             denotation_correct = denotation_correct_list[i]
             # print '  denotation correct = %s' % denotation_correct
 
-    aug_frac = int(OPTIONS.aug_frac * 100)
-    augment = OPTIONS.augment.replace('+', '_')
-    num_epochs = '_'.join(map(str, OPTIONS.num_epochs))
-
-    file_name = '{name}_{prefix}_aug_frac_{aug_frac}_agument_{augment}_num_epochs_{num_epochs}.csv'.format(
-        name=name, prefix=prefix, aug_frac=aug_frac, augment=augment, num_epochs=num_epochs)
+    file_name_csv = _get_file_name(name, prefix, 'csv')
     pd.DataFrame({
         'is_correct': is_correct_list,
         'token_correct': tokens_correct_list,
@@ -358,7 +362,7 @@ def evaluate(name, model, dataset, domain=None, prefix=''):
         'y_len': y_len_list,
         'y_pred_str': y_pred_strs,
         'y_str': y_strs
-    }).to_csv(file_name, index=False)
+    }).to_csv(file_name_csv, index=False)
     # print_accuracy_metrics(name, is_correct_list, tokens_correct_list,
     #                        x_len_list, y_len_list, denotation_correct_list)
 
@@ -533,19 +537,11 @@ def write_stats():
         out.close()
 
 
-def train_augmenter_optional(model, train_data, dev_data, augmenter):
-    model.train(train_data, T=OPTIONS.num_epochs, eta=OPTIONS.learning_rate,
-                dev_data=dev_data, l2_reg=OPTIONS.lambda_reg,
-                distract_prob=OPTIONS.distract_prob,
-                distract_num=OPTIONS.distract_num,
-                concat_prob=OPTIONS.concat_prob, concat_num=OPTIONS.concat_num,
-                augmenter=augmenter, aug_frac=OPTIONS.aug_frac)
-
-
 def _save_parameters(spec, prefix):
     if OPTIONS.save_file:
-        print >> sys.stderr, 'Saving parameters...'
-        spec.save(OPTIONS.save_file + '_' + prefix)
+        file_name_params = _get_file_name('', prefix, 'pkl')
+        print >> sys.stderr, 'Saving parameters in ' + file_name_params
+        spec.save(file_name_params)
 
 
 def _eval(model, train_raw, train_data, dev_raw, domain, prefix):
@@ -577,14 +573,24 @@ def run():
         # train with the augmenter
         prefix = 'pre'
         print('Training {}'.format(prefix))
-        train_augmenter_optional(model, train_data, dev_data, augmenter=augmenter)
+        model.train(train_data, T=OPTIONS.num_epochs, eta=OPTIONS.learning_rate,
+                    dev_data=dev_data, l2_reg=OPTIONS.lambda_reg,
+                    distract_prob=OPTIONS.distract_prob,
+                    distract_num=OPTIONS.distract_num,
+                    concat_prob=OPTIONS.concat_prob, concat_num=OPTIONS.concat_num,
+                    augmenter=augmenter, aug_frac=OPTIONS.aug_frac)
         _save_parameters(spec, prefix=prefix)
         _eval(model, train_raw, train_data, dev_raw, domain, prefix=prefix)
 
         # train without the augmenter
         prefix = 'fine_tune'
         print('Training {}'.format(prefix))
-        train_augmenter_optional(model, train_data, dev_data, augmenter=None)
+        model.train(train_data, T=OPTIONS.num_epochs, eta=OPTIONS.learning_rate,
+                    dev_data=dev_data, l2_reg=OPTIONS.lambda_reg,
+                    distract_prob=OPTIONS.distract_prob,
+                    distract_num=OPTIONS.distract_num,
+                    concat_prob=OPTIONS.concat_prob, concat_num=OPTIONS.concat_num,
+                    augmenter=None, aug_frac=OPTIONS.aug_frac)
         _save_parameters(spec, prefix=prefix)
         _eval(model, train_raw, train_data, dev_raw, domain, prefix=prefix)
 
