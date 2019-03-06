@@ -79,8 +79,8 @@ class NeuralModel(object):
 
     Returns: the current objective value
     """
-    print 'x: %s' % ex.x_str
-    print 'y: %s' % ex.y_str
+    # print 'x: %s' % ex.x_str
+    # print 'y: %s' % ex.y_str
     if distractors:
       for ex_d in distractors:
         print 'd: %s' % ex_d.x_str
@@ -91,7 +91,7 @@ class NeuralModel(object):
       info = self._backprop(ex.x_inds, ex.y_inds, eta, ex.y_in_x_inds, l2_reg)
     p_y_seq = info[0]
     objective = info[1]
-    print 'P(y_i): %s' % p_y_seq
+    # print 'P(y_i): %s' % p_y_seq
     return objective
 
   def decode_greedy(self, ex, max_len=100):
