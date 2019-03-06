@@ -7,6 +7,7 @@ import random
 import sys
 
 import numpy
+import pandas as pd
 import theano
 
 # Local imports
@@ -297,7 +298,7 @@ def decode(model, ex):
         return model.decode_beam(ex, beam_size=OPTIONS.beam_size)
 
 
-def evaluate(name, model, dataset, domain=None):
+def evaluate(name, model, dataset, domain=None, prefix=''):
     """Evaluate the model. """
     in_vocabulary = model.in_vocabulary
     out_vocabulary = model.out_vocabulary
@@ -306,6 +307,9 @@ def evaluate(name, model, dataset, domain=None):
     tokens_correct_list = []
     x_len_list = []
     y_len_list = []
+    y_pred_strs = []
+    y_strs = []
+    probs = []
 
     if domain:
         all_derivs = [decode(model, ex) for ex in dataset]
@@ -316,12 +320,15 @@ def evaluate(name, model, dataset, domain=None):
         denotation_correct_list = None
 
     for i, ex in enumerate(dataset):
-        print 'Example %d' % i
-        print '  x      = "%s"' % ex.x_str
-        print '  y      = "%s"' % ex.y_str
+        # print 'Example %d' % i
+        # print '  x      = "%s"' % ex.x_str
+        # print '  y      = "%s"' % ex.y_str
         prob = derivs[i].p
+        probs.append(prob)
         y_pred_toks = derivs[i].y_toks
         y_pred_str = ' '.join(y_pred_toks)
+        y_pred_strs.append(y_pred_str)
+        y_strs.append(ex.y_str)
 
         # Compute accuracy metrics
         is_correct = (y_pred_str == ex.y_str)
@@ -330,15 +337,30 @@ def evaluate(name, model, dataset, domain=None):
         tokens_correct_list.append(tokens_correct)
         x_len_list.append(len(ex.x_toks))
         y_len_list.append(len(ex.y_toks))
-        print '  y_pred = "%s"' % y_pred_str
-        print '  sequence correct = %s' % is_correct
-        print '  token accuracy = %d/%d = %g' % (
-            tokens_correct, len(ex.y_toks), float(tokens_correct) / len(ex.y_toks))
+        # print '  y_pred = "%s"' % y_pred_str
+        # print '  sequence correct = %s' % is_correct
+        # print '  token accuracy = %d/%d = %g' % (
+        #    tokens_correct, len(ex.y_toks), float(tokens_correct) / len(ex.y_toks))
         if denotation_correct_list:
             denotation_correct = denotation_correct_list[i]
-            print '  denotation correct = %s' % denotation_correct
-    print_accuracy_metrics(name, is_correct_list, tokens_correct_list,
-                           x_len_list, y_len_list, denotation_correct_list)
+            # print '  denotation correct = %s' % denotation_correct
+
+    aug_frac = int(OPTIONS.aug_frac * 100)
+    augment = OPTIONS.augment.replace('+', '_')
+    num_epochs = '_'.join(OPTIONS.num_epochs)
+
+    file_name = '{name}_{prefix}_aug_frac_{aug_frac}_agument_{augment}_num_epochs_{num_epochs}.csv'.format(
+        name=name, prefix=prefix, aug_frac=aug_frac, augment=augment, num_epochs=num_epochs)
+    pd.DataFrame({
+        'is_correct': is_correct_list,
+        'token_correct': tokens_correct_list,
+        'x_len': x_len_list,
+        'y_len': y_len_list,
+        'y_pred_str': y_pred_strs,
+        'y_str': y_strs
+    }).to_csv(file_name, index=False)
+    # print_accuracy_metrics(name, is_correct_list, tokens_correct_list,
+    #                        x_len_list, y_len_list, denotation_correct_list)
 
 
 def run_shell(model):
@@ -490,18 +512,18 @@ def init_spec(train_raw):
     return spec
 
 
-def evaluate_train(model, train_data, domain=None):
+def evaluate_train(model, train_data, domain=None, prefix=''):
     print >> sys.stderr, 'Evaluating on training data...'
     print 'Training data:'
-    evaluate('train', model, train_data, domain=domain)
+    evaluate('train', model, train_data, domain=domain, prefix=prefix)
 
 
-def evaluate_dev(model, dev_raw, domain=None):
+def evaluate_dev(model, dev_raw, domain=None, prefix=''):
     print >> sys.stderr, 'Evaluating on dev data...'
     dev_model = update_model(model, dev_raw)
     dev_data = preprocess_data(dev_model, dev_raw)
     print 'Dev data:'
-    evaluate('dev', dev_model, dev_data, domain=domain)
+    evaluate('dev', dev_model, dev_data, domain=domain, prefix=prefix)
 
 
 def write_stats():
@@ -509,6 +531,28 @@ def write_stats():
         out = open(OPTIONS.stats_file, 'w')
         print >> out, json.dumps(STATS)
         out.close()
+
+
+def train_augmenter_optional(model, train_data, dev_data, augmenter):
+    model.train(train_data, T=OPTIONS.num_epochs, eta=OPTIONS.learning_rate,
+                dev_data=dev_data, l2_reg=OPTIONS.lambda_reg,
+                distract_prob=OPTIONS.distract_prob,
+                distract_num=OPTIONS.distract_num,
+                concat_prob=OPTIONS.concat_prob, concat_num=OPTIONS.concat_num,
+                augmenter=augmenter, aug_frac=OPTIONS.aug_frac)
+
+
+def _save_parameters(spec, prefix):
+    if OPTIONS.save_file:
+        print >> sys.stderr, 'Saving parameters...'
+        spec.save(OPTIONS.save_file + '_' + prefix)
+
+
+def _eval(model, train_raw, train_data, dev_raw, domain, prefix):
+    if train_raw:
+        evaluate_train(model, train_data, domain=domain, prefix=prefix)
+    if dev_raw:
+        evaluate_dev(model, dev_raw, domain=domain, prefix=prefix)
 
 
 def run():
@@ -529,28 +573,21 @@ def run():
         if dev_raw:
             dev_data = preprocess_data(model, dev_raw)
         augmenter = get_augmenter(train_raw, domain)
-        model.train(train_data, T=OPTIONS.num_epochs, eta=OPTIONS.learning_rate,
-                    dev_data=dev_data, l2_reg=OPTIONS.lambda_reg,
-                    distract_prob=OPTIONS.distract_prob,
-                    distract_num=OPTIONS.distract_num,
-                    concat_prob=OPTIONS.concat_prob, concat_num=OPTIONS.concat_num,
-                    augmenter=augmenter, aug_frac=OPTIONS.aug_frac)
 
-    if OPTIONS.save_file:
-        print >> sys.stderr, 'Saving parameters...'
-        spec.save(OPTIONS.save_file)
+        # train with the augmenter
+        train_augmenter_optional(model, train_data, dev_data, augmenter)
+        _save_parameters(spec, '_pre')
 
-    if train_raw:
-        evaluate_train(model, train_data, domain=domain)
-    if dev_raw:
-        evaluate_dev(model, dev_raw, domain=domain)
+        # train without the augmenter
+        train_augmenter_optional(model, train_data, dev_data, None)
+        _save_parameters(spec, '_fine_tune')
 
-    write_stats()
+    # write_stats()
 
-    if OPTIONS.shell:
-        run_shell(model)
-    elif OPTIONS.server:
-        run_server(model, hostname=OPTIONS.hostname, port=OPTIONS.port)
+    # if OPTIONS.shell:
+    #     run_shell(model)
+    # elif OPTIONS.server:
+    #     run_server(model, hostname=OPTIONS.hostname, port=OPTIONS.port)
 
 
 def main():
