@@ -347,7 +347,7 @@ def evaluate(name, model, dataset, domain=None, prefix=''):
 
     aug_frac = int(OPTIONS.aug_frac * 100)
     augment = OPTIONS.augment.replace('+', '_')
-    num_epochs = '_'.join(OPTIONS.num_epochs)
+    num_epochs = '_'.join(map(str, OPTIONS.num_epochs))
 
     file_name = '{name}_{prefix}_aug_frac_{aug_frac}_agument_{augment}_num_epochs_{num_epochs}.csv'.format(
         name=name, prefix=prefix, aug_frac=aug_frac, augment=augment, num_epochs=num_epochs)
