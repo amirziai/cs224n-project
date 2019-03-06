@@ -575,12 +575,18 @@ def run():
         augmenter = get_augmenter(train_raw, domain)
 
         # train with the augmenter
-        train_augmenter_optional(model, train_data, dev_data, augmenter)
-        _save_parameters(spec, '_pre')
+        prefix = 'pre'
+        print('Training {}'.format(prefix))
+        train_augmenter_optional(model, train_data, dev_data, augmenter=augmenter)
+        _save_parameters(spec, prefix=prefix)
+        _eval(model, train_raw, train_data, dev_raw, domain, prefix=prefix)
 
         # train without the augmenter
-        train_augmenter_optional(model, train_data, dev_data, None)
-        _save_parameters(spec, '_fine_tune')
+        prefix = 'fine_tune'
+        print('Training {}'.format(prefix))
+        train_augmenter_optional(model, train_data, dev_data, augmenter=None)
+        _save_parameters(spec, prefix=prefix)
+        _eval(model, train_raw, train_data, dev_raw, domain, prefix=prefix)
 
     # write_stats()
 
