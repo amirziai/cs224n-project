@@ -112,3 +112,4 @@ lib/
 evaluator/
 params
 stats.json
+*.pkl

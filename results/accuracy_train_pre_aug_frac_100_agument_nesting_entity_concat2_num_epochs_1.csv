@@ -1,0 +1,2 @@
+denotation_accuracy,denotation_correct,denotation_total,sentence_accuracy,sentence_correct,sentence_total,token_accuracy,token_correct,token_total
+0.49666666666666665,298,600,0.40166666666666667,241,600,0.7013810161805627,13611,19406
