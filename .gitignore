@@ -113,3 +113,4 @@ evaluator/
 params
 stats.json
 *.pkl
+results/

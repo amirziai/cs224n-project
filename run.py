@@ -29,7 +29,7 @@ Options:
     --batch-size-train=<int>                batch size for training [default: 32]
     --batch-size-dev=<int>                  batch size for dev [default: 512]
     --valid-niter=<int>                     perform validation after how many iterations [default: 100]
-    --max-epoch=<int>                       max epoch [default: 1000]
+    --max-epoch=<int>                       max epoch [default: 100]
     --file-path-model=<file>                model save path [default: model.bin]
     --beam-size=<int>                       beam size [default: 5]
     --augment=<str>                         augment type [default: None]
@@ -38,6 +38,7 @@ Options:
     --encoder-type=<str>                    encoder type [default: brnn]
     --decoder-type=<str>                    decoder type [default: rnn]
     --pre-train                             pre-train
+    --results-dir=<str>                     results directory [default: results]
     --uuid=<str>                            uuid to retrieve a past run [default: None]
 """
 import glob
@@ -103,7 +104,8 @@ class Runner:
                  decoder_type: str,
                  pre_train: bool,
                  skip_training: bool = False,
-                 uuid: Optional[str] = None):
+                 uuid: Optional[str] = None,
+                 results_dir: str = 'results'):
         # params
         self.domain_name = domain_name
         self.file_path_train = file_path_train
@@ -127,6 +129,7 @@ class Runner:
         self.decoder_type = decoder_type
         self.pre_train = pre_train
         self.skip_training = skip_training
+        self.results_dir = results_dir
 
         # seed the random number generators
         torch.manual_seed(self.seed)
@@ -135,6 +138,9 @@ class Runner:
         np.random.seed(self.seed)
 
         self.uuid = uuid if uuid else str(uuid4()).replace('-', '')
+
+        if not os.path.exists(self.results_dir):
+            os.makedirs(self.results_dir)
 
         # important things to populate later
         self.domain = None
@@ -202,7 +208,6 @@ class Runner:
     def _evaluate(self, data: DomainData, hypotheses: List[List[Hypothesis]]) -> ExperimentResults:
         xs, ys = unzip(data)
         true_answers = [''.join(y) for y in ys]
-        print(true_answers)
 
         derivs, denotation_correct_list = self.domain.compare_answers(true_answers, hypotheses)
 
@@ -237,10 +242,10 @@ class Runner:
 
     @property
     def openmt_files_prefix(self) -> str:
-        return f'{self.domain_name}_{self.uuid}'
+        return f'{self.results_dir}/{self.domain_name}_{self.uuid}'
 
     def _remove_openmt_files(self) -> None:
-        for fl in glob.glob(f'{self.openmt_files_prefix}*'):
+        for fl in glob.glob(f'{self.results_dir}/{self.openmt_files_prefix}*'):
             os.remove(fl)
 
     def prep_data(self, use_augmentation: bool) -> str:
@@ -274,7 +279,7 @@ class Runner:
 
         # pre-process
         cmd = [
-            'python', 'OpenNMT-py/preprocess.py',
+            'python', 'preprocess.py',
             '-save_data', self.openmt_files_prefix,
             '-train_src', self._get_openmt_file_name(self.file_path_train, src=True),
             '-train_tgt', self._get_openmt_file_name(self.file_path_train, src=False),
@@ -282,27 +287,22 @@ class Runner:
             '-valid_tgt', self._get_openmt_file_name(self.file_path_dev, src=False),
             '--src_seq_length', str(self.max_sentence_length),
             '--tgt_seq_length', str(self.max_sentence_length),
+            '--log_file', self._get_process_log_file_name('pre_process'),
             '--dynamic_dict'
         ]
-        return self._subprocess_runner(cmd, 'prep_data')
+        return self._subprocess_runner(cmd)
 
     @property
     def file_path_model_uuid(self) -> str:
-        return f'{self.file_path_model}_{self.uuid}'
+        return f'{self.results_dir}/{self.file_path_model}_{self.uuid}'
 
     @property
     def file_path_model_uuid_checkpoint(self) -> str:
         return f'{self.file_path_model_uuid}_step_{self.max_epoch}.pt'
 
-    @staticmethod
-    def __subprocess_runner(cmd: List[str]) -> str:
-        log(' '.join(cmd))
-        output_bytes = subprocess.check_output(cmd)
-        return output_bytes.decode('utf-8')
-
     def train(self, fine_tune: bool) -> str:
         cmd = [
-            'python', 'OpenNMT-py/train.py',
+            'python', 'train.py',
             '-data', self.openmt_files_prefix,
             '-save_model', self.file_path_model_uuid,
             '--copy_attn',
@@ -317,27 +317,31 @@ class Runner:
             '--batch_size', str(self.batch_size_train),
             '--seed', str(self.seed),
             '--encoder_type', self.encoder_type,
+            '--log_file', self._get_process_log_file_name(f"train{'_fine_tune' if fine_tune else ''}"),
             '--decoder_type', self.decoder_type
         ]
         cmd += (['-copy_attn_force'] if self.decoder_type != 'transformer' else [])
         cmd += (['train_from', self.file_path_model_uuid_checkpoint] if fine_tune else [])
 
-        return self._subprocess_runner(cmd, name=f"train{'_fine_tune' if fine_tune else ''}", write_to_disk=True)
+        return self._subprocess_runner(cmd)
 
     def _get_process_log_file_name(self, name: str) -> str:
-        return f'log_{self.uuid}_{name}'
+        return f'{self.results_dir}/log_{self.uuid}_{name}'
 
-    def _subprocess_runner(self, cmd: List[str], name: str, write_to_disk: bool=True) -> str:
-        output = self.__subprocess_runner(cmd)
-        if write_to_disk:
-            with open(self._get_process_log_file_name(name), 'w') as f:
-                f.write(output)
-        return output
+    @staticmethod
+    def _subprocess_runner(cmd: List[str]) -> str:
+        log(' '.join(cmd))
+        output_bytes = subprocess.check_output(cmd)
+        return output_bytes.decode('utf-8')
 
     @staticmethod
     def _dict_to_namedtuple(d: dict) -> namedtuple:
         Temp = namedtuple('Temp', sorted(d))
         return Temp(**d)
+
+    @property
+    def file_path_translate_output(self):
+        return f'{self.results_dir}/translate_{self.uuid}.txt'
 
     def decode(self) -> ExperimentResults:
         args = dict(alpha=0.0,
@@ -364,7 +368,7 @@ class Runner:
                     min_length=0,
                     models=[self.file_path_model_uuid_checkpoint],
                     n_best=self.beam_size,
-                    output='pred.txt',
+                    output=self.file_path_translate_output,
                     random_sampling_temp=1.0,
                     random_sampling_topk=1,
                     ratio=-0.0,

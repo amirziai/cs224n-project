@@ -43,8 +43,8 @@ class ExperimentRunner:
 
     def run(self):
         param_grid = self._get_param_grid(self.experiment_parameters)
-        # results = Parallel(n_jobs=self.n_jobs)(delayed(self._param_run)(param for param in param_grid))
-        results = [self._param_run(param) for param in param_grid]
+        results = Parallel(n_jobs=self.n_jobs)(delayed(self._param_run)(param for param in param_grid))
+        # results = [self._param_run(param) for param in param_grid]
         pd.DataFrame(results).to_csv(f'results_{self.uuid}.csv', index=False)
 
 
