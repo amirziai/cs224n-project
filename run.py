@@ -48,15 +48,15 @@ import random
 import subprocess
 from collections import namedtuple
 from itertools import repeat
-from typing import List, Optional, Tuple, NamedTuple
+from typing import List, Optional, NamedTuple
 
 import numpy as np
 import torch
 from docopt import docopt
 
 import domains
-from augmentation import Augmenter
-from domains import DomainData
+from augmentation import Augmenter, CoOccurrence
+from domains import DomainDataTokenized, DomainDataString
 from onmt.translate.translator import build_translator
 from onmt.utils.logging import init_logger
 from onmt.utils.misc import split_corpus
@@ -131,6 +131,8 @@ class Runner:
 
         self.uuid = self._get_uuid()
 
+        assert 0 <= aug_frac <= 1, f"aug_frac must be between 0 and 1, it's {aug_frac}"
+
         # seed the random number generators
         torch.manual_seed(self.seed)
         if self.cuda:
@@ -157,15 +159,15 @@ class Runner:
         return "cuda" if torch.cuda.is_available() else "cpu"
 
     @staticmethod
-    def _domain_data_to_raw(data: DomainData) -> List[Tuple[str, str]]:
+    def _domain_data_tokenized_to_string(data: DomainDataTokenized) -> DomainDataString:
         return [(' '.join(x_lst), ' '.join(y_lst)) for x_lst, y_lst in data]
 
     @staticmethod
-    def _raw_to_domain_data(data: List[Tuple[str, str]]) -> DomainData:
+    def _domain_data_string_to_tokenized(data: DomainDataString) -> DomainDataTokenized:
         return [(x.split(), y.split()) for x, y in data]
 
     @staticmethod
-    def _load_data(file_path: str, domain: domains.Domain) -> DomainData:
+    def _load_data(file_path: str, domain: domains.Domain) -> DomainDataTokenized:
         dataset = []
         with open(file_path) as f:
             for line in f:
@@ -206,7 +208,7 @@ class Runner:
                                  num_tokens_correct, num_tokens, token_accuracy,
                                  denotation_correct, denotation_total, denotation_accuracy)
 
-    def _evaluate(self, data: DomainData, hypotheses: List[List[Hypothesis]]) -> ExperimentResults:
+    def _evaluate(self, data: DomainDataTokenized, hypotheses: List[List[Hypothesis]]) -> ExperimentResults:
         xs, ys = unzip(data)
         true_answers = [''.join(y) for y in ys]
 
@@ -261,12 +263,22 @@ class Runner:
         # augmenter
         if use_augmentation and self.augment:
             aug_types = self.augment.split('+')
-            data_train_raw = self._domain_data_to_raw(self.data_train)
-            self.augmenter = Augmenter(self.domain, data_train_raw, aug_types)
-            # Do data augmentation on the fly
+            data_train_raw = self._domain_data_tokenized_to_string(self.data_train)
             aug_num = int(round(self.aug_frac * len(self.data_train)))
-            aug_exs = self.augmenter.sample(aug_num)
-            self.data_train += self._raw_to_domain_data(aug_exs)
+            co = CoOccurrence(data_train_raw) if 'co' in aug_types else None
+
+            if len(aug_types) == 1 and co:
+                # only augmentation is co-occurrence
+                aug_exs = co(data_train_raw, aug_num)
+            else:
+                self.augmenter = Augmenter(self.domain, data_train_raw, aug_types)
+                # Do data augmentation on the fly
+                aug_exs = self.augmenter.sample(aug_num)
+                if co:
+                    # apply co-occurrence on top of other things
+                    aug_exs = co(aug_exs)
+
+            self.data_train += self._domain_data_string_to_tokenized(aug_exs)
             random.shuffle(self.data_train)
 
         log(f'Augmented train data size: {len(self.data_train)}')

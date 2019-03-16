@@ -5,8 +5,9 @@
 import random
 import sys
 from collections import defaultdict
-from typing import List, Tuple, Dict, Set
+from typing import Tuple, Dict, Set, Optional, List
 
+from domains import DomainDataString
 from grammar import Grammar
 from utils import stopwords
 
@@ -129,105 +130,88 @@ class Augmenter(object):
         return aug_data
 
 
-CoOccurrenceData = List[Tuple[str, str]]
-
-
 class CoOccurrence:
-    def __init__(self, src_tgt: CoOccurrenceData):
-        self.window_size = 3
-        self.token_size_threshold = 3
-        self.support = 0.3
-        self.support_abs = 2
+    def __init__(self, src_tgt: DomainDataString):
+        # augment with this probability
         self.aug_prob = 0.5
 
         self.src_tgt = src_tgt
-        self.lexicon_src_tgt = self._generate_lexicon(self.src_tgt, is_reverse=False)
-        self.lexicon_tgt_src = self._generate_lexicon([(y, x) for x, y in self.src_tgt], is_reverse=True)
+        self.lexicon = self._generate_lexicon(self.src_tgt)
 
-    def _generate_lexicon(self, src_tgt: CoOccurrenceData, is_reverse: bool = False) -> Dict[str, Set[str]]:
-        cnt = defaultdict(lambda: defaultdict(int))
-        cnt_tgt = defaultdict(int)
+    @staticmethod
+    def _generate_lexicon(src_tgt: DomainDataString) -> Dict[str, Set[str]]:
+        """
+        Build a mapping between co-occurring tokens.
+        Only considering source sentences of the same length with a single token difference.
+        For example for the following two sentences:
+        - what is the capital of wyoming?
+        - what is the capital of alaska?
+        we will generate a mapping from alaska -> wyoming and another one from wyoming -> alaska in the lexicon
+        the lexicon would look like this if it only had these two records:
+        {
+            'wyoming': {'alaska'},
+            'alaska': {'wyoming'}
+        }
+        as more co-occurring tokens are found they're added to each set.
 
-        # _answer appears everywhere for target -> source
-        stop_words = set(stopwords).union({'_answer'} if is_reverse else set())
+        :param src_tgt: domain data e.g. [('what is the cpaital of...', ('_answer ...'), ...]
+        :return: lexicon
+        """
+        srcs = [set(src.split()) for src, _ in src_tgt]
 
-        for src, tgt in src_tgt:
-            src_tokens = src.split()
-            tgt_tokens = tgt.split()
+        co_occur_map = defaultdict(set)
 
-            for tgt_token in tgt_tokens:
-                cnt_tgt[tgt_token] += 1
+        co_occur = [
+            (list(b.difference(c))[0], list(c.difference(b))[0])
+            for b in srcs
+            for c in srcs
+            if (b != c
+                and len(b.intersection(c)) == len(b) - 1
+                and len(b) == len(c)
+                and list(b.difference(c))[0] not in stopwords
+                and list(c.difference(b))[0] not in stopwords)
+        ]
 
-            for i, src_token in enumerate(src_tokens):
-                if len(src_token) >= self.token_size_threshold and src_token not in stop_words:
-                    for j in range(-self.window_size, self.window_size + 1):
-                        if (0 <= i + j < len(tgt_tokens) and len(tgt_tokens[i + j]) >= self.token_size_threshold and
-                                tgt_tokens[i + j] not in stop_words):
-                            cnt[tgt_tokens[i + j]][src_token] += 1
+        for a, b in co_occur:
+            co_occur_map[a].add(b)
+            co_occur_map[b].add(a)
 
-        # set of src words that positionally (within a window) co-occur with some min support with the target
-        x = {
-            tgt: {src: cnt[tgt][src] for src in cnt[tgt] if
-                  cnt[tgt][src] >= self.support * cnt_tgt[tgt] and cnt[tgt][src] >= self.support_abs}
-            for tgt in cnt
-            if
-            len({src for src in cnt[tgt] if
-                 cnt[tgt][src] >= self.support * cnt_tgt[tgt] and cnt[tgt][src] >= self.support_abs}) >= 2
+        return co_occur_map
+
+    def _get_src_mapping(self, xs: List[str]) -> Dict[str, str]:
+        """
+        Genereates the mapping of the tokens to be replaced, randomly selected from the available ones in the lexicon.
+        :param xs: list of tokens in a source sentence, e.g. ['what', 'is', 'the', 'capital', ...]
+        :return: mapping, e.g. {'wyoming': 'alabama', 'indiana': 'california', ...}
+        """
+        return {
+            x: random.choice(list(self.lexicon[x]))
+            for x in xs
+            if x in self.lexicon and random.random() <= self.aug_prob
         }
 
-        # lookup for co-occurring tokens
-        out = defaultdict(set)
-        for val_dict in x.values():
-            val_vals = val_dict.keys()
-            for val in val_vals:
-                for val_map_to in val_vals:
-                    if val_map_to != val:
-                        out[val].add(val_map_to)
-
-        return out
-
-    def _aug(self, token: str, src: bool) -> str:
-        lexicon = self.lexicon_src_tgt if src else self.lexicon_tgt_src
-        if token in lexicon:
-            do_aug = random.random() <= self.aug_prob
-            return random.choice(list(lexicon[token])) if do_aug else token
-        else:
-            return token
-
     def _sample_item(self, x_str: str, y_str: str) -> Tuple[str, str]:
+        """
+        Replace the tokens given the mapping in both the natural language utterance and the logical form.
+        :param x_str: natural language utterance, e.g. 'what is the capital of ...'
+        :param y_str: logical form, e.g. '_answer _capital ( V0 ) ...'
+        :return: augmented pair
+        """
         x_lst, y_lst = x_str.split(), y_str.split()
-        xs_aug = ' '.join([self._aug(x, src=True) for x in x_lst])
-        ys_aug = ' '.join([self._aug(y, src=False) for y in y_lst])
+        mapping = self._get_src_mapping(x_lst)
+        xs_aug = ' '.join([mapping[x] if x in mapping else x for x in x_lst])
+        ys_aug = ' '.join([mapping[y] if y in mapping else y for y in y_lst])
         return xs_aug, ys_aug
 
-    # def sample(self, n) -> CoOccurrenceData:
-    #     src_tgt_n = random.sample(self.src_tgt, n)
-    #     return [self._sample_item(x_str, y_str) for x_str, y_str in src_tgt_n]
+    def __call__(self, src_tgt: DomainDataString, n: Optional[int] = None) -> DomainDataString:
+        """
 
-    def __call__(self, src_tgt: CoOccurrenceData) -> CoOccurrenceData:
+        :param src_tgt: dataset to augment
+        :param n: number of random pairs to augment where n <= len(src_tgt), if None then augment all
+        :return: augmented pairs
+        """
+        if n:
+            assert n > 0, f"n must be positive, it's {n}"
+            src_tgt = random.sample(src_tgt, n)
+        # return src_tgt
         return [self._sample_item(x_str, y_str) for x_str, y_str in src_tgt]
-
-# def main():
-#     """Print augmented data to stdout."""
-#     if len(sys.argv) < 5:
-#         print >> sys.stderr, 'Usage: %s [file] [domain] [aug-type] [num]' % sys.argv[0]
-#         sys.exit(1)
-#     fname, domain_name, aug_type_str, num = sys.argv[1:5]
-#     num = int(num)
-#     aug_types = aug_type_str.split('+')
-#     data = []
-#     domain = domains.new(domain_name)
-#     with open(fname) as f:
-#         for line in f:
-#             x, y = line.strip().split('\t')
-#             y = domain.preprocess_lf(y)
-#             data.append((x, y))
-#     augmenter = Augmenter(domain, data, aug_types)
-#     aug_data = augmenter.sample(num)
-#     for ex in aug_data:
-#         print
-#         '\t'.join(ex)
-#
-#
-# if __name__ == '__main__':
-#     main()

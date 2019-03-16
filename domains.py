@@ -8,7 +8,8 @@ import sys
 import tempfile
 from typing import List, Tuple
 
-DomainData = List[Tuple[List[str], List[str]]]
+DomainDataTokenized = List[Tuple[List[str], List[str]]]
+DomainDataString = List[Tuple[str, str]]
 
 
 class Domain(object):
