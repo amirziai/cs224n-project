@@ -350,7 +350,7 @@ class Runner:
                     attn_debug=False,  # TODO: this is cool, do something with it
                     avg_raw_probs=False,
                     batch_size=self.batch_size_dev,
-                    beam_size=5,
+                    beam_size=self.beam_size,
                     beta=-0.0,
                     block_ngram_repeat=0,
                     config=None,
