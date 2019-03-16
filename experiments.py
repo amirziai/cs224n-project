@@ -1,4 +1,4 @@
-import pickle
+import os
 from itertools import product
 from typing import Dict, Set, List, Any, Tuple
 from uuid import uuid4
@@ -9,7 +9,7 @@ from joblib import Parallel, delayed
 import params
 import run
 from run import ExperimentResults
-from utils import log, merge_dicts
+from utils import log, merge_dicts, uuid_to_str, pickle_object, unpickle
 
 ParamSet = Dict[str, Any]
 ParamGrid = List[ParamSet]
@@ -20,25 +20,29 @@ class ExperimentRunner:
     def __init__(self, experiment_parameters: Dict[str, Set[Any]], n_jobs: int):
         self.experiment_parameters = experiment_parameters
         self.n_jobs = n_jobs
-        self.uuid = uuid4()
+        self.uuid: str = uuid_to_str(uuid4())
 
     @staticmethod
     def _get_param_grid(parameters: Dict[str, Set[Any]]) -> ParamGrid:
         return [dict(zip(parameters.keys(), t)) for t in product(*parameters.values())]
 
     @staticmethod
-    def _pickle(obj: Any, file_path_out) -> None:
-        with open(file_path_out, 'wb') as f:
-            pickle.dump(obj, f)
+    def _file_path_experiment_results(runner_uuid: RunnerUUID) -> str:
+        return f'results/{runner_uuid}_experiment_results.pkl'
+
+    def _experiment_result_exists(self, runner_uuid: RunnerUUID) -> bool:
+        return os.path.isfile(self._file_path_experiment_results(runner_uuid))
 
     def _param_run(self, param_set: ParamSet) -> Tuple[ExperimentResults, RunnerUUID]:
         log(f'Running param set: {param_set}')
         runner = run.Runner(**param_set)
-        experiment_results = runner.run()
+        if self._experiment_result_exists(runner.uuid):
+            log('Loading experiment results from cache')
+            experiment_results = unpickle(self._file_path_experiment_results(runner.uuid))
+        else:
+            experiment_results = runner.run()
+            pickle_object(experiment_results, self._file_path_experiment_results(runner.uuid))
 
-        # persist
-        self._pickle(experiment_results, f'results/{self.uuid}_experiment_results_exp_{runner.uuid}.pkl')
-        self._pickle(runner, f'results/{self.uuid}_runner_exp_{runner.uuid}.pkl')
         return experiment_results, runner.uuid
 
     def run(self):

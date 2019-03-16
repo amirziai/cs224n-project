@@ -144,7 +144,7 @@ class CoOccurrence:
         self.lexicon_src_tgt = self._generate_lexicon(self.src_tgt, is_reverse=False)
         self.lexicon_tgt_src = self._generate_lexicon([(y, x) for x, y in self.src_tgt], is_reverse=True)
 
-    def _generate_lexicon(self, src_tgt: List[Tuple[str, str]], is_reverse: bool = False) -> Dict[str, Set[str]]:
+    def _generate_lexicon(self, src_tgt: CoOccurrenceData, is_reverse: bool = False) -> Dict[str, Set[str]]:
         cnt = defaultdict(lambda: defaultdict(int))
         cnt_tgt = defaultdict(int)
 
@@ -200,9 +200,12 @@ class CoOccurrence:
         ys_aug = ' '.join([self._aug(y, src=False) for y in y_lst])
         return xs_aug, ys_aug
 
-    def sample(self, n) -> CoOccurrenceData:
-        src_tgt_n = random.sample(self.src_tgt, n)
-        return [self._sample_item(x_str, y_str) for x_str, y_str in src_tgt_n]
+    # def sample(self, n) -> CoOccurrenceData:
+    #     src_tgt_n = random.sample(self.src_tgt, n)
+    #     return [self._sample_item(x_str, y_str) for x_str, y_str in src_tgt_n]
+
+    def __call__(self, src_tgt: CoOccurrenceData) -> CoOccurrenceData:
+        return [self._sample_item(x_str, y_str) for x_str, y_str in src_tgt]
 
 # def main():
 #     """Print augmented data to stdout."""

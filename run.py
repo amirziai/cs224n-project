@@ -39,7 +39,6 @@ Options:
     --decoder-type=<str>                    decoder type [default: rnn]
     --pre-train                             pre-train
     --results-dir=<str>                     results directory [default: results]
-    --uuid=<str>                            uuid to retrieve a past run [default: None]
     --python-cmd=<str>                      python command to use [default: python3]
 """
 import glob
@@ -50,7 +49,6 @@ import subprocess
 from collections import namedtuple
 from itertools import repeat
 from typing import List, Optional, Tuple, NamedTuple
-from uuid import uuid4
 
 import numpy as np
 import torch
@@ -62,7 +60,7 @@ from domains import DomainData
 from onmt.translate.translator import build_translator
 from onmt.utils.logging import init_logger
 from onmt.utils.misc import split_corpus
-from utils import log, unzip
+from utils import log, unzip, hash_dict
 
 Hypothesis = namedtuple('Hypothesis', ['value', 'score'])
 
@@ -103,7 +101,6 @@ class Runner:
                  decoder_type: str,
                  pre_train: bool,
                  skip_training: bool = False,
-                 uuid: Optional[str] = None,
                  results_dir: str = 'results',
                  python_cmd: str = 'python3'):
         # params
@@ -132,13 +129,13 @@ class Runner:
         self.results_dir = results_dir
         self.python_cmd = python_cmd
 
+        self.uuid = self._get_uuid()
+
         # seed the random number generators
         torch.manual_seed(self.seed)
         if self.cuda:
             torch.cuda.manual_seed(self.seed)
         np.random.seed(self.seed)
-
-        self.uuid = uuid if uuid else str(uuid4()).replace('-', '')
 
         if not os.path.exists(self.results_dir):
             os.makedirs(self.results_dir)
@@ -151,6 +148,9 @@ class Runner:
         self.model = None
         self.optimizer = None
         self.augmenter = None
+
+    def _get_uuid(self):
+        return hash_dict(self.__dict__)
 
     @property
     def device(self) -> str:
@@ -442,7 +442,6 @@ def main() -> None:
     # Check PyTorch version
     assert torch.__version__ == "1.0.0", f"You have PyTorch=={torch.__version__} and you should have version 1.0.0"
     augment = args['--augment']
-    uuid = args['--uuid']
 
     runner = Runner(
         domain_name=args['--domain-name'],
@@ -467,7 +466,6 @@ def main() -> None:
         decoder_type=args['--decoder-type'],
         pre_train=args['--pre-train'],
         skip_training=not args['train'],
-        uuid=uuid if uuid != 'None' else None,
         python_cmd=args['--python-cmd']
     )
 
