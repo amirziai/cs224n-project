@@ -10,7 +10,8 @@ Sahil Chopra <schopra8@stanford.edu>
 
 import math
 import sys
-from typing import TypeVar, List, Tuple
+from typing import TypeVar, List, Tuple, Dict, Any
+from functools import reduce
 
 import numpy as np
 
@@ -85,3 +86,7 @@ def batch_iter(data: DomainData, batch_size: int, shuffle: bool=False):
 
 def log(msg: str) -> None:
     print(msg, file=sys.stderr)
+
+
+def merge_dicts(*args: Dict) -> Dict[Any, Any]:
+    return reduce(lambda x, y: {**x, **y}, args)

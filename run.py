@@ -47,9 +47,8 @@ import os
 import random
 import subprocess
 from collections import namedtuple
-from dataclasses import dataclass
 from itertools import repeat
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, NamedTuple
 from uuid import uuid4
 
 import numpy as np
@@ -67,8 +66,7 @@ from utils import log, unzip
 Hypothesis = namedtuple('Hypothesis', ['value', 'score'])
 
 
-@dataclass
-class ExperimentResults:
+class ExperimentResults(NamedTuple):
     sequence_correct: int
     sequence_total: int
     sequence_accuracy: float
@@ -245,7 +243,7 @@ class Runner:
         return f'{self.results_dir}/{self.domain_name}_{self.uuid}'
 
     def _remove_openmt_files(self) -> None:
-        for fl in glob.glob(f'{self.results_dir}/{self.openmt_files_prefix}*'):
+        for fl in glob.glob(f'{self.openmt_files_prefix}*.pt'):
             os.remove(fl)
 
     def prep_data(self, use_augmentation: bool) -> str:
@@ -321,7 +319,7 @@ class Runner:
             '--decoder_type', self.decoder_type
         ]
         cmd += (['-copy_attn_force'] if self.decoder_type != 'transformer' else [])
-        cmd += (['train_from', self.file_path_model_uuid_checkpoint] if fine_tune else [])
+        cmd += (['--train_from', self.file_path_model_uuid_checkpoint] if fine_tune else [])
 
         return self._subprocess_runner(cmd)
 
