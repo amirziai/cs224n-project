@@ -40,6 +40,7 @@ Options:
     --pre-train                             pre-train
     --results-dir=<str>                     results directory [default: results]
     --uuid=<str>                            uuid to retrieve a past run [default: None]
+    --python-cmd=<str>                      python command to use [default: python3]
 """
 import glob
 import math
@@ -103,7 +104,8 @@ class Runner:
                  pre_train: bool,
                  skip_training: bool = False,
                  uuid: Optional[str] = None,
-                 results_dir: str = 'results'):
+                 results_dir: str = 'results',
+                 python_cmd: str = 'python3'):
         # params
         self.domain_name = domain_name
         self.file_path_train = file_path_train
@@ -128,6 +130,7 @@ class Runner:
         self.pre_train = pre_train
         self.skip_training = skip_training
         self.results_dir = results_dir
+        self.python_cmd = python_cmd
 
         # seed the random number generators
         torch.manual_seed(self.seed)
@@ -226,30 +229,31 @@ class Runner:
 
         return self._get_accuracy_metrics(is_correct_list, tokens_correct_list, y_len_list, denotation_correct_list)
 
-    def _get_openmt_file_name(self, file_name: str, src: bool) -> str:
-        name, ext = file_name.split('.')
-        return f"{name}-{'src' if src else 'tgt'}_{self.uuid}.{ext}"
+    def _get_opennmt_file_name(self, file_path: str, src: bool) -> str:
+        file_name = file_path.split('/')[-1]
+        name, _ = file_name.split('.')
+        return f"{self.results_dir}/{self.uuid}_{name}_{'src' if src else 'tgt'}"
 
     def _write_to_file(self, sentences: List[List[str]], train: bool, src: bool) -> None:
         file_name_orig = self.file_path_train if train else self.file_path_dev
-        file_name = self._get_openmt_file_name(file_name_orig, src)
+        file_name = self._get_opennmt_file_name(file_name_orig, src)
 
         with open(file_name, 'w') as f:
             for sent in sentences:
                 f.write(f"{' '.join(sent).strip()}\n")
 
     @property
-    def openmt_files_prefix(self) -> str:
-        return f'{self.results_dir}/{self.domain_name}_{self.uuid}'
+    def opennmt_files_prefix(self) -> str:
+        return f'{self.results_dir}/{self.uuid}_{self.domain_name}'
 
-    def _remove_openmt_files(self) -> None:
-        for fl in glob.glob(f'{self.openmt_files_prefix}*.pt'):
+    def _remove_opennmt_files(self) -> None:
+        for fl in glob.glob(f'{self.opennmt_files_prefix}*.pt'):
             os.remove(fl)
 
     def prep_data(self, use_augmentation: bool) -> str:
         self.domain = domains.new(self.domain_name)
 
-        self._remove_openmt_files()
+        self._remove_opennmt_files()
 
         self.data_train = self._load_data(self.file_path_train, self.domain)
         log(f'Train data size: {len(self.data_train)}')
@@ -278,11 +282,11 @@ class Runner:
         # pre-process
         cmd = [
             'python3', 'preprocess.py',
-            '-save_data', self.openmt_files_prefix,
-            '-train_src', self._get_openmt_file_name(self.file_path_train, src=True),
-            '-train_tgt', self._get_openmt_file_name(self.file_path_train, src=False),
-            '-valid_src', self._get_openmt_file_name(self.file_path_dev, src=True),
-            '-valid_tgt', self._get_openmt_file_name(self.file_path_dev, src=False),
+            '-save_data', self.opennmt_files_prefix,
+            '-train_src', self._get_opennmt_file_name(self.file_path_train, src=True),
+            '-train_tgt', self._get_opennmt_file_name(self.file_path_train, src=False),
+            '-valid_src', self._get_opennmt_file_name(self.file_path_dev, src=True),
+            '-valid_tgt', self._get_opennmt_file_name(self.file_path_dev, src=False),
             '--src_seq_length', str(self.max_sentence_length),
             '--tgt_seq_length', str(self.max_sentence_length),
             '--log_file', self._get_process_log_file_name('pre_process'),
@@ -292,7 +296,7 @@ class Runner:
 
     @property
     def file_path_model_uuid(self) -> str:
-        return f'{self.results_dir}/{self.file_path_model}_{self.uuid}'
+        return f'{self.results_dir}/{self.uuid}_{self.file_path_model}'
 
     @property
     def file_path_model_uuid_checkpoint(self) -> str:
@@ -301,7 +305,7 @@ class Runner:
     def train(self, fine_tune: bool) -> str:
         cmd = [
             'python3', 'train.py',
-            '-data', self.openmt_files_prefix,
+            '-data', self.opennmt_files_prefix,
             '-save_model', self.file_path_model_uuid,
             '--copy_attn',
             '--train_steps', str(self.max_epoch),
@@ -324,7 +328,7 @@ class Runner:
         return self._subprocess_runner(cmd)
 
     def _get_process_log_file_name(self, name: str) -> str:
-        return f'{self.results_dir}/log_{self.uuid}_{name}'
+        return f'{self.results_dir}/{self.uuid}_log_{name}'
 
     @staticmethod
     def _subprocess_runner(cmd: List[str]) -> str:
@@ -339,7 +343,7 @@ class Runner:
 
     @property
     def file_path_translate_output(self):
-        return f'{self.results_dir}/translate_{self.uuid}.txt'
+        return f'{self.results_dir}/{self.uuid}_final_output'
 
     def decode(self) -> ExperimentResults:
         args = dict(alpha=0.0,
@@ -379,8 +383,8 @@ class Runner:
                     seed=self.seed,
                     shard_size=10000,
                     share_vocab=False,
-                    src=self._get_openmt_file_name(self.file_path_dev, src=True),
-                    tgt=self._get_openmt_file_name(self.file_path_dev, src=False),
+                    src=self._get_opennmt_file_name(self.file_path_dev, src=True),
+                    tgt=self._get_opennmt_file_name(self.file_path_dev, src=False),
                     src_dir='',
                     stepwise_penalty=False,
                     verbose=True, window='hamming', window_size=0.02, window_stride=0.01)
@@ -463,7 +467,8 @@ def main() -> None:
         decoder_type=args['--decoder-type'],
         pre_train=args['--pre-train'],
         skip_training=not args['train'],
-        uuid=uuid if uuid != 'None' else None
+        uuid=uuid if uuid != 'None' else None,
+        python_cmd=args['--python-cmd']
     )
 
     runner.run()

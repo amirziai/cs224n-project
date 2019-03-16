@@ -34,11 +34,11 @@ class ExperimentRunner:
     def _param_run(self, param_set: ParamSet) -> Tuple[ExperimentResults, RunnerUUID]:
         log(f'Running param set: {param_set}')
         runner = run.Runner(**param_set)
-        experiment_results: ExperimentResults = runner.run()
+        experiment_results = runner.run()
 
         # persist
-        self._pickle(experiment_results, f'results/runner_experiment_results_{self.uuid}_exp_{runner.uuid}.pkl')
-        self._pickle(runner, f'results/runner_{self.uuid}_exp_{runner.uuid}.pkl')
+        self._pickle(experiment_results, f'results/{self.uuid}_experiment_results_exp_{runner.uuid}.pkl')
+        self._pickle(runner, f'results/{self.uuid}_runner_exp_{runner.uuid}.pkl')
         return experiment_results, runner.uuid
 
     def run(self):
