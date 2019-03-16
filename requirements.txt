@@ -3,3 +3,4 @@ docopt
 numpy
 pandas
 joblib
+torchtext

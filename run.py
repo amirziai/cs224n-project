@@ -277,7 +277,7 @@ class Runner:
 
         # pre-process
         cmd = [
-            'python', 'preprocess.py',
+            'python3', 'preprocess.py',
             '-save_data', self.openmt_files_prefix,
             '-train_src', self._get_openmt_file_name(self.file_path_train, src=True),
             '-train_tgt', self._get_openmt_file_name(self.file_path_train, src=False),
@@ -300,7 +300,7 @@ class Runner:
 
     def train(self, fine_tune: bool) -> str:
         cmd = [
-            'python', 'train.py',
+            'python3', 'train.py',
             '-data', self.openmt_files_prefix,
             '-save_model', self.file_path_model_uuid,
             '--copy_attn',
