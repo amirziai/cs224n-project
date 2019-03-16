@@ -5,13 +5,13 @@
 """Train models."""
 import os
 import signal
+
 import torch
 
 import onmt.opts as opts
 import onmt.utils.distributed
-
-from onmt.utils.logging import logger
 from onmt.train_single import main as single_main
+from onmt.utils.logging import logger
 from onmt.utils.parse import ArgumentParser
 
 
@@ -31,7 +31,7 @@ def main(opt):
         procs = []
         for device_id in range(nb_gpu):
             procs.append(mp.Process(target=run, args=(
-                opt, device_id, error_queue, ), daemon=True))
+                opt, device_id, error_queue,), daemon=True))
             procs[device_id].start()
             logger.info(" Starting process pid: %d  " % procs[device_id].pid)
             error_handler.add_child(procs[device_id].pid)
@@ -40,7 +40,7 @@ def main(opt):
 
     elif nb_gpu == 1:  # case 1 GPU only
         single_main(opt, 0)
-    else:   # case only CPU
+    else:  # case only CPU
         single_main(opt, -1)
 
 
