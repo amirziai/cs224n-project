@@ -1,5 +1,5 @@
 seed = 0
-n_jobs = 1
+n_jobs = 16
 
 file_path_model = 'model.bin'
 
