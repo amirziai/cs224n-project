@@ -4,6 +4,9 @@ import random
 import re
 
 
+# code from https://worksheets.codalab.org/worksheets/0x50757a37779b485f89012e4ba03b6f4f/
+
+
 class Grammar(object):
     ROOT = '$ROOT'
 

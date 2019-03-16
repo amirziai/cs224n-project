@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+
+# Code from http://opennmt.net/OpenNMT-py/
+
 """
     Pre-process Data / features files and build vocabulary
 """

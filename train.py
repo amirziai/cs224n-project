@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+
+# Code from http://opennmt.net/OpenNMT-py/
+
 """Train models."""
 import os
 import signal

@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+# Code from http://opennmt.net/OpenNMT-py/
+
 from __future__ import unicode_literals
 from itertools import repeat
 

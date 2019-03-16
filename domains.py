@@ -1,3 +1,5 @@
+# code from https://worksheets.codalab.org/worksheets/0x50757a37779b485f89012e4ba03b6f4f/
+
 """A domain defines domain-specific processing."""
 import os
 import re
@@ -5,8 +7,6 @@ import subprocess
 import sys
 import tempfile
 from typing import List, Tuple
-
-# import atislexicon
 
 DomainData = List[Tuple[List[str], List[str]]]
 
@@ -292,104 +292,6 @@ def pick_derivations(true_dens, all_pred_dens, all_derivs, is_error_fn):
     return derivs, pred_dens
 
 
-# class AtisDomain(Domain):
-#     DEFAULT_TRAIN_FILE = os.path.join(
-#         os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-#         'data/atis/processed/atis_train.tsv')
-#
-#     def standardize_varnames(self, ans):
-#         toks = ans.split(' ')
-#         varnames = {}
-#         new_toks = []
-#         for t in toks:
-#             if t == 'x' or t.startswith('$'):
-#                 # t is a variable name
-#                 if t in varnames:
-#                     new_toks.append(varnames[t])
-#                 else:
-#                     new_varname = '$v%d' % len(varnames)
-#                     varnames[t] = new_varname
-#                     new_toks.append(new_varname)
-#             else:
-#                 new_toks.append(t)
-#         lf = ' '.join(new_toks)
-#         return lf
-#
-#     def sort_args(self, ans):
-#         lisp_tree = to_lisp_tree(ans)
-#         if lisp_tree is None: return ans
-#
-#         # Post-order traversal, sorting as we go
-#         def recurse(node):
-#             if isinstance(node, str): return
-#             for child in node:
-#                 recurse(child)
-#             if node[0] in ('_and', '_or'):
-#                 node[1:] = sorted(node[1:], key=lambda x: str(x))
-#
-#         recurse(lisp_tree)
-#
-#         def tree_to_str(node):
-#             if isinstance(node, str):
-#                 return node
-#             else:
-#                 return '( %s )' % ' '.join(tree_to_str(child) for child in node)
-#
-#         return tree_to_str(lisp_tree)
-#
-#     def normalize(self, ans):
-#         """Perform some normalization of ATIS logical forms
-#
-#         1. Standardize variable names, since atis_test uses different convention.
-#         2. Sort arguments to commutative operators such as _and() and _or().
-#         3. Balance parentheses.
-#         """
-#         lf = self.standardize_varnames(ans)
-#         # Balance parentheses
-#         # In particular, atis_test gold lf's have unbalanced parens...
-#         num_left_paren = sum(1 for c in lf if c == '(')
-#         num_right_paren = sum(1 for c in lf if c == ')')
-#         diff = num_left_paren - num_right_paren
-#         if diff > 0:
-#             lf = lf + ' )' * diff
-#         lf = self.sort_args(lf)
-#         return lf
-#
-#     def compare_answers(self, true_answers, all_derivs):
-#         derivs = [x[0] for x in all_derivs]
-#         pred_answers = [' '.join(d.y_toks) for d in derivs]
-#         is_correct_list = []
-#         for true_ans, pred_ans in zip(true_answers, pred_answers):
-#             is_correct_list.append(
-#                 self.normalize(true_ans) == self.normalize(pred_ans))
-#         return derivs, is_correct_list
-#
-#     def get_entity_alignments(self, x, y):
-#         # Cache lexicon
-#         if not self.lex:
-#             self.lex = atislexicon.get_lexicon()
-#         alignments = []
-#         x_toks = x.split(' ')
-#         running_lens = [0] * (len(x_toks) + 1)  # index to use if start at token i
-#         for i in range(1, len(x_toks) + 1):
-#             running_lens[i] = running_lens[i - 1] + 1 + len(x_toks[i - 1])
-#         y_toks = y.split(' ')
-#         lex_items = self.lex.map_over_sentence(x_toks, return_entries=True)
-#         lex_ents = [a[1] for a in lex_items]
-#         for (i, j), ent in lex_items:
-#             # Make sure this entity occurs exactly once in lexicon entries
-#             # and in the logical form
-#             x_span = (running_lens[i], running_lens[j] - 1)
-#             ent_type = ent.split(':')[1][1:]
-#             cat = '$' + ent_type
-#             if lex_ents.count(ent) != 1: continue
-#             if y_toks.count(ent) != 1: continue
-#             y_ind = y.index(ent)
-#             y_span = (y_ind, y_ind + len(ent))
-#             alignments.append((cat, x_span, y_span))
-#         return alignments
-#
-#
 class OvernightDomain(Domain):
     DEFAULT_TRAIN_FILE = os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
@@ -546,136 +448,11 @@ class OvernightDomain(Domain):
         return alignments, productions
 
 
-class ArtificialDomain(Domain):
-    def get_entity_alignments(self, x, y):
-        print((x, y))
-        x_ind = x.find('ent')
-        y_ind = y.find('_ent')
-        if x_ind == -1 or y_ind == -1: return []
-        return [('$ent', (x_ind, x_ind + 6), (y_ind, y_ind + 7))]
-
-    def get_nesting_alignments(self, x, y):
-        x_ind = x.find('ent')
-        y_ind = y.find('_ent')
-        alignments = [('$phrase', (x_ind, x_ind + 6), (y_ind, y_ind + 7))]
-        productions = [('$phrase', x, y)]
-        return alignments, productions
-
-
-def to_lisp_tree(expr):
-    toks = expr.split(' ')
-
-    def recurse(i):
-        if toks[i] == '(':
-            subtrees = []
-            j = i + 1
-            while True:
-                subtree, j = recurse(j)
-                subtrees.append(subtree)
-                if toks[j] == ')':
-                    return subtrees, j + 1
-        else:
-            return toks[i], i + 1
-
-    try:
-        lisp_tree, final_ind = recurse(0)
-        return lisp_tree
-    except Exception as e:
-        print('Failed to convert "%s" to lisp tree' % expr, file=sys.stderr)
-        print(e)
-        return None
-
-
 def new(domain_name):
     if domain_name == 'geoquery':
         return GeoqueryDomain()
-    elif domain_name == 'atis':
-        return AtisDomain()
     elif domain_name.startswith('overnight'):
         subdomain = domain_name.split('-')[1]
         return OvernightDomain(subdomain)
-    elif domain_name == 'artificial':
-        return ArtificialDomain()
     else:
         raise ValueError('Unrecognized domain "%s"' % domain_name)
-
-
-def test_process_lf(domain):
-    num_diffs = 0
-    with open(domain.DEFAULT_TRAIN_FILE) as f:
-        dataset = [tuple(line.rstrip('\n').split('\t')) for line in f]
-    for i, (x, y) in enumerate(dataset):
-        y_pre = domain.preprocess_lf(y)
-        y_post = domain.postprocess_lf(y_pre)
-        print('Example %d' % i)
-
-        print('  x      = "%s"' % x)
-
-        print('  y      = "%s"' % y)
-
-        print('  y_pre  = "%s"' % y_pre)
-
-        print('  y_post = "%s"' % y_post)
-
-        print('  y == y_post: %s' % (y == y_post))
-
-        print()
-        if y != y_post:
-            num_diffs += 1
-    print()
-    'Found %d cases where y != y_post' % num_diffs
-
-
-def test_get_entity_alignments(domain):
-    with open(domain.DEFAULT_TRAIN_FILE) as f:
-        dataset = [tuple(line.rstrip('\n').split('\t')) for line in f]
-    for i, (x, y) in enumerate(dataset):
-        y = domain.preprocess_lf(y)
-        print('Example %d' % i)
-
-        print('  x      = "%s"' % x)
-
-        print('  y      = "%s"' % y)
-
-        for cat, x_span, y_span in domain.get_entity_alignments(x, y):
-            print('  %s -> ("%s", "%s")' % (cat, x[x_span[0]:x_span[1]], y[y_span[0]:y_span[1]]))
-
-
-def test_get_nesting_alignments(domain):
-    with open(domain.DEFAULT_TRAIN_FILE) as f:
-        dataset = [tuple(line.rstrip('\n').split('\t')) for line in f]
-    for i, (x, y) in enumerate(dataset):
-        y = domain.preprocess_lf(y)
-        print('Example %d' % i)
-
-        print('  x      = "%s"' % x)
-
-        print('  y      = "%s"' % y)
-
-        alignments, productions = domain.get_nesting_alignments(x, y)
-        for cat, x_span, y_span in alignments:
-            print('  align: %s -> ("%s", "%s")' % (cat, x[x_span[0]:x_span[1]], y[y_span[0]:y_span[1]]))
-
-        for cat, x_str, y_str in productions:
-            print('  prod : %s -> ("%s", "%s")' % (cat, x_str, y_str))
-
-
-def main():
-    if len(sys.argv) < 3:
-        print('Usage: %s domain [process_lf]' % sys.argv[0], file=sys.stderr)
-        sys.exit(1)
-    domain_name = sys.argv[1]
-    method = sys.argv[2]
-    domain = new(domain_name)
-    if method == 'process_lf':
-        test_process_lf(domain)
-    elif method == 'get_entity_alignments':
-        test_get_entity_alignments(domain)
-    elif method == 'get_nesting_alignments':
-        test_get_nesting_alignments(domain)
-    else:
-        print('Unrecognized method "%s"' % method, file=sys.stderr)
-
-
-if __name__ == '__main__':
-    main()
