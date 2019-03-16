@@ -2,7 +2,8 @@
 import sys
 
 from grammar import Grammar
-from vocabulary import Vocabulary
+
+END_OF_SENTENCE = '</s>'
 
 
 class Augmenter(object):
@@ -105,7 +106,7 @@ class Augmenter(object):
                 new_grammar.add_rule('$sentence', x_str, y_str)
             else:
                 new_grammar.add_rule(cat, x_str, y_str)
-        root_str = (' %s ' % Vocabulary.END_OF_SENTENCE).join(
+        root_str = (' %s ' % END_OF_SENTENCE).join(
             '$sentence_%d' % i for i in range(concat_num))
         new_grammar.add_rule(new_grammar.ROOT, root_str, root_str)
         # new_grammar.print_self()

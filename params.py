@@ -18,7 +18,7 @@ experiment1 = {
     'batch_size_train': {256},
     'batch_size_dev': {128},
     'valid_niter': {100},
-    'max_epoch': {10},
+    'max_epoch': {1000},
     'beam_size': {5},
     'max_sentence_length': {1000},
     'encoder_type': {'brnn'},
