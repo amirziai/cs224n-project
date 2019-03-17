@@ -38,7 +38,7 @@ experiment1 = {
     'decoder_type': {'rnn', 'transformer'},
     'domain_name': {'geoquery'},
     'aug_frac': {1.0},
-    'embed_size': {64, 128},
+    'embed_size': {32, 64, 128},
     'hidden_size': {64, 128, 256},
     'seed': {seed},
     'dropout': {0.3},
