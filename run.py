@@ -375,7 +375,7 @@ class Runner:
                     ignore_when_blocking=[],
                     image_channel_size=3,
                     length_penalty='none',
-                    log_file='',
+                    log_file=self._get_process_log_file_name('decode'),
                     log_file_level='0',
                     max_length=100,
                     max_sent_length=None,
