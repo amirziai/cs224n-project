@@ -35,7 +35,7 @@ experiment1 = {
     'augment':  {None, 'nesting+entity+concat2', 'co', 'nesting+entity+concat2+co'},
     'pre_train': {True, False},
     'lr': {0.01, 0.001},
-    'decoder_type': {'rnn', 'transformer'},
+    'decoder_type': {'rnn'},
     'domain_name': {'geoquery'},
     'aug_frac': {1.0},
     'embed_size': {32, 64, 128},
