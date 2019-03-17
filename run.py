@@ -376,7 +376,7 @@ class Runner:
                     image_channel_size=3,
                     length_penalty='none',
                     log_file=self._get_process_log_file_name('decode'),
-                    log_file_level='0',
+                    log_file_level='INFO',
                     max_length=100,
                     max_sent_length=None,
                     min_length=0,
