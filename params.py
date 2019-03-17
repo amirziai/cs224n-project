@@ -1,5 +1,5 @@
 seed = 0
-n_jobs = 16
+n_jobs = 32
 
 file_path_model = 'model.bin'
 file_path_train = 'data/geo880_train600.tsv'
@@ -34,7 +34,7 @@ experiment1_test = {
 experiment1 = {
     'augment':  {None, 'nesting+entity+concat2', 'co', 'nesting+entity+concat2+co'},
     'pre_train': {True, False},
-    'lr': {0.01, 0.001},
+    'lr': {0.01, 0.001, 0.0001},
     'decoder_type': {'rnn'},
     'domain_name': {'geoquery'},
     'aug_frac': {1.0},
