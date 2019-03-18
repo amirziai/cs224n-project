@@ -17,9 +17,6 @@ Get the data from the same CodaLab link. We need these files:
 # files for the geoquery domain
 data/geo880_train600.tsv
 data/geo880_test260.tsv
-
-# files for overnight
-TODO
 ```
 
 3- Install dependencies:

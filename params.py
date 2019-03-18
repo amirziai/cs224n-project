@@ -7,13 +7,13 @@ file_path_dev = 'data/geo880_test280.tsv'
 
 # test end-to-end
 experiment1_test = {
-    'augment': {'nesting+entity+concat2'},
+    'augment': {'nesting+entity+concat2+co'},
     'pre_train': {True},
     'lr': {0.001},
-    'decoder_type': {'rnn'},
+    'decoder_type': {'transformer'},
     'domain_name': {'geoquery'},
     'aug_frac': {1.0},
-    'embed_size': {128},
+    'embed_size': {64},
     'hidden_size': {128},
     'seed': {seed},
     'dropout': {0.3},
@@ -24,7 +24,7 @@ experiment1_test = {
     'max_epoch': {1000},
     'beam_size': {5},
     'max_sentence_length': {1000},
-    'encoder_type': {'brnn'},
+    'encoder_type': {'transformer'},
     'file_path_train': {file_path_train},
     'file_path_dev': {file_path_dev},
     'file_path_model': {file_path_model}
@@ -34,7 +34,7 @@ experiment1_test = {
 experiment1 = {
     'augment':  {None, 'nesting+entity+concat2', 'co', 'nesting+entity+concat2+co'},
     'pre_train': {True, False},
-    'lr': {0.01, 0.001, 0.0001},
+    'lr': {0.01, 0.001},
     'decoder_type': {'rnn'},
     'domain_name': {'geoquery'},
     'aug_frac': {1.0},
