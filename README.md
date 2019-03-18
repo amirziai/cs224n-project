@@ -31,6 +31,11 @@ python3 experiments.py
 
 The experiment parameters are defined in `params.py`. The cross-product of all the parameters is run and the results are collected in a csv file under `results\`. A lot of intermediate artifacts are generated for analysis in the same folder.
 
+### Resources
+- [Final report](cs224n-amir-ziai-final-report.pdf)
+- Poster (coming soon)
+- Video (coming soon)
+
 ### References
 - [`OpenNMT-py`](http://opennmt.net/OpenNMT-py/) is heavily used in this project.
 - [Jia et. al's code for Data Recombination for Neural Semantic Parsing (ACL 2016)](https://worksheets.codalab.org/worksheets/0x50757a37779b485f89012e4ba03b6f4f/)
