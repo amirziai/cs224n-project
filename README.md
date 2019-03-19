@@ -33,8 +33,9 @@ The experiment parameters are defined in `params.py`. The cross-product of all t
 
 ### Resources
 - [Final report](cs224n-amir-ziai-final-report.pdf)
-- Poster (coming soon)
-- Video (coming soon)
+- [Poster](cs224n-amir-ziai-poster.pdf)
+- [Slides](https://docs.google.com/presentation/d/1xri6f6f877PdO1xV8VWzc39lDMqetMLVfiFMezBbpc0/edit?usp=sharing)
+- [Video](http://youtu.be/ASJgXlR4W-U?hd=1)
 
 ### References
 - [`OpenNMT-py`](http://opennmt.net/OpenNMT-py/) is heavily used in this project.
